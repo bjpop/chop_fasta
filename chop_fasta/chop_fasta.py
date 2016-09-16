@@ -10,13 +10,18 @@ from argparse import ArgumentParser
 import sys
 from Bio import SeqIO
 import pkg_resources
+import os
+import os.path
+import hashlib
 
 
 EXIT_FILE_IO_ERROR = 1
 EXIT_COMMAND_LINE_ERROR = 2
 EXIT_FASTA_FILE_ERROR = 3
 DEFAULT_VERBOSE = False
+DEFAULT_SUBDIRS = False
 PROGRAM_NAME = "chop_fasta"
+HASH_DIGEST_PREFIX_LEN = 2
 
 
 try:
@@ -51,6 +56,10 @@ def parse_args():
                         action='store_true',
                         default=DEFAULT_VERBOSE,
                         help="Print more stuff about what's happening")
+    parser.add_argument('--subdirs',
+                        action='store_true',
+                        default=DEFAULT_SUBDIRS,
+                        help="Split the output across 256 subdirectories")
     parser.add_argument('fasta_files',
                         nargs='*',
                         metavar='FASTA_FILE',
@@ -59,21 +68,47 @@ def parse_args():
     return parser.parse_args()
 
 
+def md5_string(string):
+    '''Get an md5 hash digest of a string in hexadecimal'''
+    hasher = hashlib.md5()
+    hasher.update(string.encode('utf-8'))
+    digest = hasher.hexdigest()
+    return digest
 
-def chop_file(fasta_file):
+
+def maybe_create_dir(dirname):
+    '''Create a directory if it doesn't already exist'''
+    # we ignore the potential race condition which could occur
+    # if the directory happens to be made by another process
+    # just after we check if it doesn't exist
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+
+def chop_file(fasta_file, subdirs=False):
     '''Chop up a single FASTA file into separate sequences.
     Write a new file for each sequence. The file name is derived from the
     sequence header in the FASTA file.
 
     Arguments:
        fasta_file: an open file object for the FASTA file
+       subdirs: a boolean. If True the output fasta files will be spread
+           across 256 subdirectories. Filenames are hashed using md5,
+           and the first two characters of the hexadecimal digest
+           are used as the directory name.
     Result:
        None
     '''
     for seq in SeqIO.parse(fasta_file, "fasta"):
         sequence_name = seq.id
         filename = sequence_name + ".fasta"
-        SeqIO.write(seq, filename, "fasta")
+        if subdirs:
+            # take the first two chars from hash digest of string
+            subdirname = md5_string(sequence_name)[:HASH_DIGEST_PREFIX_LEN]
+            maybe_create_dir(subdirname)
+            filepath = os.path.join(subdirname, filename)
+        else:
+            filepath = filename
+        SeqIO.write(seq, filepath, "fasta")
 
 
 def process_files(options):
@@ -92,9 +127,9 @@ def process_files(options):
                 exit_with_error(str(exception), EXIT_FILE_IO_ERROR)
             else:
                 with fasta_file:
-                    chop_file(fasta_file)
+                    chop_file(fasta_file, options.subdirs)
     else:
-        chop_file(sys.stdin)
+        chop_file(sys.stdin, options.subdirs)
 
 
 def main():
