@@ -12,14 +12,14 @@ and is an ideal starting place for new projects.'''
 
 
 setup(
-    name='chop_fasta-py',
+    name='chop_fasta',
     version='0.1.0.0',
     author='Bernie Pope',
     author_email='bjpope@unimelb.edu.au',
     packages=['chop_fasta'],
     package_dir={'chop_fasta': 'chop_fasta'},
     entry_points={
-        'console_scripts': ['chop_fasta-py = chop_fasta.chop_fasta:main']
+        'console_scripts': ['chop_fasta = chop_fasta.chop_fasta:main']
     },
     url='https://github.com/bjpop/chop_fasta',
     license='LICENSE',
